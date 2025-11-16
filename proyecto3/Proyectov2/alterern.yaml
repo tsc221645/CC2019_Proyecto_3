@@ -1,0 +1,78 @@
+# remover.mt_lyaml - Elimina todas las 'b'
+q_states:
+  q_list:
+    - 'q0'
+    - 'q1'
+    - 'final'
+  initial: 'q0'
+  final: 'final'
+alphabet:
+  - a
+  - b
+tape_alphabet:
+  - a
+  - b
+  -   # blank
+delta:
+  # Mantener 'a', eliminar 'b'
+  - params:
+      initial_state: 'q0'
+      mem_cache_value:
+      tape_input: a
+    output:
+      final_state: 'q0'
+      mem_cache_value:
+      tape_output: a
+      tape_displacement: R
+  - params:
+      initial_state: 'q0'
+      mem_cache_value:
+      tape_input: b
+    output:
+      final_state: 'q1'
+      mem_cache_value:
+      tape_output:
+      tape_displacement: R
+  - params:
+      initial_state: 'q0'
+      mem_cache_value:
+      tape_input:
+    output:
+      final_state: 'final'
+      mem_cache_value:
+      tape_output:
+      tape_displacement: S
+
+  # Después de eliminar 'b', continuar
+  - params:
+      initial_state: 'q1'
+      mem_cache_value:
+      tape_input: a
+    output:
+      final_state: 'q0'
+      mem_cache_value:
+      tape_output: a
+      tape_displacement: R
+  - params:
+      initial_state: 'q1'
+      mem_cache_value:
+      tape_input: b
+    output:
+      final_state: 'q1'
+      mem_cache_value:
+      tape_output:
+      tape_displacement: R
+  - params:
+      initial_state: 'q1'
+      mem_cache_value:
+      tape_input:
+    output:
+      final_state: 'final'
+      mem_cache_value:
+      tape_output:
+      tape_displacement: S
+simulation_strings:
+  - aab
+  - abb
+  - aabb
+  - aaabbb

@@ -1,0 +1,165 @@
+# Máquina reconocedora para L = { a^n b^n | n >= 1 }
+q_states:
+  q_list:
+    - 'q0'
+    - 'q1' 
+    - 'q2'
+    - 'q3'
+    - 'q_accept'
+    - 'q_reject'
+  initial: 'q0'
+  final: 'q_accept'
+alphabet:
+  - a
+  - b
+tape_alphabet:
+  - X
+  - Y
+  - a
+  - b
+  -   # blank
+delta:
+  # Fase 1: Verificar que empiece con 'a'
+  - params:
+      initial_state: 'q0'
+      mem_cache_value:
+      tape_input: a
+    output:
+      final_state: 'q1'
+      mem_cache_value:
+      tape_output: X
+      tape_displacement: R
+  - params:
+      initial_state: 'q0'
+      mem_cache_value:
+      tape_input: b
+    output:
+      final_state: 'q_reject'
+      mem_cache_value:
+      tape_output: b
+      tape_displacement: S
+  - params:
+      initial_state: 'q0'
+      mem_cache_value:
+      tape_input:
+    output:
+      final_state: 'q_reject'
+      mem_cache_value:
+      tape_output:
+      tape_displacement: S
+
+  # Fase 2: Buscar 'b' correspondiente
+  - params:
+      initial_state: 'q1'
+      mem_cache_value:
+      tape_input: a
+    output:
+      final_state: 'q1'
+      mem_cache_value:
+      tape_output: a
+      tape_displacement: R
+  - params:
+      initial_state: 'q1'
+      mem_cache_value:
+      tape_input: Y
+    output:
+      final_state: 'q1'
+      mem_cache_value:
+      tape_output: Y
+      tape_displacement: R
+  - params:
+      initial_state: 'q1'
+      mem_cache_value:
+      tape_input: b
+    output:
+      final_state: 'q2'
+      mem_cache_value:
+      tape_output: Y
+      tape_displacement: L
+  - params:
+      initial_state: 'q1'
+      mem_cache_value:
+      tape_input:
+    output:
+      final_state: 'q_reject'
+      mem_cache_value:
+      tape_output:
+      tape_displacement: S
+
+  # Fase 3: Regresar al inicio
+  - params:
+      initial_state: 'q2'
+      mem_cache_value:
+      tape_input: a
+    output:
+      final_state: 'q2'
+      mem_cache_value:
+      tape_output: a
+      tape_displacement: L
+  - params:
+      initial_state: 'q2'
+      mem_cache_value:
+      tape_input: Y
+    output:
+      final_state: 'q2'
+      mem_cache_value:
+      tape_output: Y
+      tape_displacement: L
+  - params:
+      initial_state: 'q2'
+      mem_cache_value:
+      tape_input: X
+    output:
+      final_state: 'q3'
+      mem_cache_value:
+      tape_output: X
+      tape_displacement: R
+
+  # Fase 4: Buscar siguiente 'a'
+  - params:
+      initial_state: 'q3'
+      mem_cache_value:
+      tape_input: a
+    output:
+      final_state: 'q1'
+      mem_cache_value:
+      tape_output: X
+      tape_displacement: R
+  - params:
+      initial_state: 'q3'
+      mem_cache_value:
+      tape_input: Y
+    output:
+      final_state: 'q3'
+      mem_cache_value:
+      tape_output: Y
+      tape_displacement: R
+  - params:
+      initial_state: 'q3'
+      mem_cache_value:
+      tape_input: b
+    output:
+      final_state: 'q_reject'
+      mem_cache_value:
+      tape_output: b
+      tape_displacement: S
+  - params:
+      initial_state: 'q3'
+      mem_cache_value:
+      tape_input:
+    output:
+      final_state: 'q_accept'
+      mem_cache_value:
+      tape_output:
+      tape_displacement: S
+
+simulation_strings:
+  # 2 Cadenas ACEPTADAS (longitud >= 5)
+  - aaaaaabbbbbb  # n=6
+  - aaaabbbb      # n=4 (pero cumple aⁿbⁿ)
+  
+  # 2 Cadenas RECHAZADAS (longitud >= 5)  
+  - aaaabbb       # n=4, m=3 (no iguales)
+  - aaabbba       # tiene 'a' después de 'b'
+  - ababab        # patrón alternado
+  - aabbbbb       # más b's que a's

@@ -1,0 +1,49 @@
+# uppercase.mt_lyaml - Convierte a->A, b->B (SIEMPRE funciona)
+q_states:
+  q_list:
+    - 'start'
+    - 'final'
+  initial: 'start'
+  final: 'final'
+alphabet:
+  - a
+  - b
+tape_alphabet:
+  - A
+  - B
+  - a
+  - b
+  -   # blank
+delta:
+  - params:
+      initial_state: 'start'
+      mem_cache_value:
+      tape_input: a
+    output:
+      final_state: 'start'
+      mem_cache_value:
+      tape_output: A
+      tape_displacement: R
+  - params:
+      initial_state: 'start'
+      mem_cache_value:
+      tape_input: b
+    output:
+      final_state: 'start'
+      mem_cache_value:
+      tape_output: B
+      tape_displacement: R
+  - params:
+      initial_state: 'start'
+      mem_cache_value:
+      tape_input:
+    output:
+      final_state: 'final'
+      mem_cache_value:
+      tape_output:
+      tape_displacement: S
+simulation_strings:
+  - ababa
+  - aabb
+  - bbaa
+  - aaabbb
