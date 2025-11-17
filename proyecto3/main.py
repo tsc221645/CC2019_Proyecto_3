@@ -1,44 +1,47 @@
-import argparse
-from turing_machine import TuringMachine
 
-def main():
-    parser = argparse.ArgumentParser(description="Simulador de MT (una cinta) - CLI")
-    parser.add_argument("yaml", help="Ruta al archivo YAML de la MT")
-    parser.add_argument("--ids-out", help="Si se indica, exporta las IDs a este .txt por cada cadena (agrega sufijo).", default=None)
-    args = parser.parse_args()
 
-    tm = TuringMachine.load_from_yaml(args.yaml)
+#Uso:
+#    python main.py example.yaml
 
-    if not tm.inputs:
-        print("No hay 'inputs' en el YAML. Agrega una lista de cadenas bajo 'inputs'.")
+#Imprime las IDs (descripciones instantáneas) paso a paso y al final muestra si la cadena fue aceptada.
+import sys
+from pathlib import Path
+import yaml
+from turing_machine import TuringMachine, load_yaml_file, BLANK
+
+def parse_simulation_string(s: str):
+    # El separador que el usuario use para dividir partes (si existe) se mantiene; 
+    # Para nuestras máquinas de ejemplo solo vamos a tomar la cadena tal cual.
+    return s
+
+def run_from_file(yaml_path: str):
+    data = load_yaml_file(yaml_path)
+    tm = TuringMachine.from_yaml(data)
+    sim_strings = data.get('simulation_strings', [])
+    if not sim_strings:
+        print("No hay cadenas en simulation_strings.")
         return
+    for idx, s in enumerate(sim_strings):
+        inp = parse_simulation_string(s)
+        print("="*60)
+        print(f"Simulación {idx+1}: input='{s}'")
+        tm.reset()
+        tm.load_input(inp)
+        result = tm.run()
+        print(f"Resultado: accepted={result.get('accepted')} steps={result.get('steps')}")
+        print("IDs (instantáneas):")
+        for idd in result.get('ids', []):
+            print(idd)
+        if result.get('max_steps_hit'):
+            print("ATENCIÓN: se alcanzó el límite máximo de pasos; la ejecución fue detenida.")
+    print("="*60)
 
-    for idx, w in enumerate(tm.inputs, 1):
-        print(f"\nCadena #{idx}: {w}")
-        tm.reset(w)
-        status = tm.run_all()
-
-        print("\nIDs:")
-        print(tm.export_id_log())
-
-        if status == "accepted":
-            print("\nResultado: ACEPTADA ")
-        elif status == "rejected":
-            print("\nResultado: RECHAZADA ")
-        else:
-            print("\nResultado: Límite de pasos alcanzado (trátalo como rechazo)")
-
-        # Exportar IDs (opcional)
-        if args.ids_out:
-            path = f"{args.ids_out.rstrip('.txt')}_cadena{idx}.txt"
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(tm.export_id_log() + "\n")
-                f.write({
-                    "accepted": "ACEPTADA ",
-                    "rejected": "RECHAZADA ",
-                    "max_steps": "Límite de pasos "
-                }[status])
-            print(f"IDs exportadas a: {path}")
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print("Uso: python main.py <archivo_yaml>")
+        sys.exit(1)
+    path = sys.argv[1]
+    if not Path(path).exists():
+        print(f"El archivo {path} no existe.")
+        sys.exit(1)
+    run_from_file(path)

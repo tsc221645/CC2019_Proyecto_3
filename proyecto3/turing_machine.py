@@ -1,152 +1,181 @@
-from __future__ import annotations
-from dataclasses import dataclass
-from typing import Dict, Tuple, List, Any
+from typing import List, Dict, Any, Optional
 import yaml
-from collections import defaultdict
 
-Move = str  #
+BLANK = None  # Representación interna del blank
 
-@dataclass
 class Transition:
-    next_state: str
-    write_symbol: str
-    move: Move
+    def __init__(self, params: Dict[str, Any], output: Dict[str, Any]):
+        # Params
+        self.initial_state = str(params.get('initial_state'))
+        # mem_cache_value may be None (wildcard) or a string
+        self.mem_cache_value = params.get('mem_cache_value')
+        # empty tape_input in YAML -> None
+        self.tape_input = params.get('tape_input')
+        # Output
+        self.final_state = str(output.get('final_state'))
+        self.out_mem_cache = output.get('mem_cache_value')
+        self.tape_output = output.get('tape_output')
+        self.tape_disp = output.get('tape_displacement')  # 'L', 'R' or 'S'
 
-def _normalize_transitions(raw: Dict[str, Any]) -> Dict[Tuple[str, str], Transition]:
+    def matches(self, state: str, tape_symbol, mem_cache) -> bool:
+        if self.initial_state != state:
+            return False
+        if self.tape_input != tape_symbol:
+            return False
+        if self.mem_cache_value is None:
+            return True
+        return self.mem_cache_value == mem_cache
 
-    out: Dict[Tuple[str, str], Transition] = {}
-
-    def _add(kstate: str, ksym: str, arr: List[str]):
-        if len(arr) != 3:
-            raise ValueError(f"Transición mal formada para ({kstate}, {ksym}): {arr}")
-        nxt, w, m = arr
-        if m not in ("L", "R", "N"):
-            raise ValueError(f"Movimiento inválido {m} en ({kstate}, {ksym})")
-        out[(kstate, ksym)] = Transition(nxt, w, m)
-
-    if any(isinstance(v, dict) for v in raw.values()):
-        for st, inner in raw.items():
-            if not isinstance(inner, dict):
-                raise ValueError("Formato de transiciones inconsistente.")
-            for sym, arr in inner.items():
-                _add(st, str(sym), arr)
-        return out
-
-    for k, arr in raw.items():
-        s = str(k).strip().replace('"', "'")
-        if not (s.startswith("(") and s.endswith(")")):
-            raise ValueError(f"Clave de transición inválida: {k}")
-        inside = s[1:-1]
-        parts = [p.strip() for p in inside.split(",")]
-        if len(parts) != 2:
-            raise ValueError(f"Clave de transición inválida: {k}")
-        st, sy = parts
-        if st.startswith("'") and st.endswith("'"): st = st[1:-1]
-        if sy.startswith("'") and sy.endswith("'"): sy = sy[1:-1]
-        _add(st, sy, arr)
-    return out
+    def __repr__(self):
+        return (f"Transition({self.initial_state}, {self.tape_input}, mc={self.mem_cache_value} -> "
+                f"{self.final_state}, out={self.tape_output}, disp={self.tape_disp}, mc_out={self.out_mem_cache})")
 
 class TuringMachine:
-    
-    def __init__(self, description: Dict[str, Any]):
-        self.states: List[str] = description["states"]
-        self.input_alphabet: List[str] = description["input_alphabet"]
-        self.tape_alphabet: List[str] = description["tape_alphabet"]
-        self.blank: str = description["blank_symbol"]
-        self.initial_state: str = description["initial_state"]
-        self.final_states: List[str] = description["final_states"]
-        self.inputs: List[str] = description.get("inputs", [])
-        self.max_steps: int = description.get("max_steps", 10000)
+    def __init__(self, states: List[str], initial: str, finals: List[str],
+                 alphabet: List[str], tape_alphabet: List[Any], transitions: List[Transition],
+                 max_steps: int = 2000):
+        self.states = states
+        self.initial = str(initial)
+        self.finals = set(map(str, finals))
+        self.alphabet = alphabet
+        self.tape_alphabet = tape_alphabet
+        self.transitions = transitions
+        self.max_steps = max_steps
 
-        if not set(self.input_alphabet).issubset(set(self.tape_alphabet)):
-            raise ValueError("El alfabeto de cinta debe contener al alfabeto de entrada.")
-        if self.blank not in self.tape_alphabet:
-            raise ValueError("El símbolo blank debe pertenecer al alfabeto de cinta.")
+        # runtime
+        self.reset()
 
-        self.transitions: Dict[Tuple[str, str], Transition] = _normalize_transitions(
-            description["transitions"]
-        )
+    def reset(self):
+        self.tape = []          # ;ista de simbolos
+        self.head = 0
+        self.state = self.initial
+        self.mem_cache = None
+        self.ids = []  # hisotorial
 
-        self._tape = defaultdict(lambda: self.blank)  
-        self._head = 0
-        self._state = self.initial_state
-        self._steps = 0
-        self._id_log: List[str] = []
-
-    def reset(self, input_string: str) -> None:
-        self._tape = defaultdict(lambda: self.blank)
-        for i, ch in enumerate(input_string):
-            if ch not in self.tape_alphabet:
-                raise ValueError(f"Símbolo de entrada fuera del alfabeto de cinta: {ch}")
-            self._tape[i] = ch
-        self._head = 0
-        self._state = self.initial_state
-        self._steps = 0
-        self._id_log = []
-        self._id_log.append(self.current_id_string())
-
-    def is_accepting(self) -> bool:
-        return self._state in self.final_states
-
-    def step(self) -> str:
-        if self.is_accepting():
-            return "accepted"
-        if self._steps >= self.max_steps:
-            return "max_steps"
-
-        sym = self._tape[self._head]
-        key = (self._state, sym)
-        if key not in self.transitions:
-            return "accepted" if self.is_accepting() else "rejected"
-
-        tr = self.transitions[key]
-        self._tape[self._head] = tr.write_symbol
-        if tr.move == "R":
-            self._head += 1
-        elif tr.move == "L":
-            self._head -= 1
-        elif tr.move == "N":
-            pass
-        else:
-            raise ValueError(f"Movimiento inválido: {tr.move}")
-
-        self._state = tr.next_state
-        self._steps += 1
-        self._id_log.append(self.current_id_string())
-
-        if self.is_accepting():
-            return "accepted"
-        if self._steps >= self.max_steps:
-            return "max_steps"
-        return "running"
-
-    def run_all(self) -> str:
-        while True:
-            status = self.step()
-            if status in ("accepted", "rejected", "max_steps"):
-                return status
-
-    def current_window(self, radius: int = 40) -> tuple[str, int]:
-        if len(self._tape) == 0:
-            return self.blank, 0
-        min_i = min(self._tape.keys())
-        max_i = max(self._tape.keys())
-        left = min(min_i, self._head - radius)
-        right = max(max_i, self._head + radius)
-        chars = [self._tape[i] for i in range(left, right + 1)]
-        head_pos = self._head - left
-        return "".join(chars), head_pos
-
-    def current_id_string(self) -> str:
-        tape_str, head_local = self.current_window(radius=40)
-        return f"({self._state}, {tape_str}, {head_local})"
-
-    def export_id_log(self) -> str:
-        return "\n".join(self._id_log)
-
-   
     @staticmethod
-    def load_from_yaml(path: str) -> "TuringMachine":
-        with open(path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        return TuringMachine(data)
+    def _symbol_to_str(s):
+        return '_' if s is None else str(s)
+
+    def load_input(self, input_str: str, separator_char: Optional[str] = None):
+        #Prepara la cinta a partir de input_str (string sin separador si separator_char None).
+        self.tape = [c for c in input_str]
+        if len(self.tape) == 0:
+            self.tape = [BLANK]
+        self.head = 0
+        self.state = self.initial
+        self.mem_cache = None
+        self.ids = []
+        self._record_id()
+
+    def _read(self):
+        if self.head < 0 or self.head >= len(self.tape):
+            return BLANK
+        val = self.tape[self.head]
+        if val == '':
+            return BLANK
+        return val
+
+    def _write(self, sym):
+        if self.head < 0:
+            # expand to the left
+            extra = [BLANK] * (abs(self.head))
+            self.tape = extra + self.tape
+            self.head += len(extra)
+        if self.head >= len(self.tape):
+            self.tape += [BLANK] * (self.head - len(self.tape) + 1)
+        self.tape[self.head] = sym
+
+    def _record_id(self):
+        tape_display = ''.join(self._symbol_to_str(s) for s in self.tape)
+        display_chars = list(tape_display)
+        idx = self.head
+        if idx < 0:
+            display_chars = ['_'] * (abs(idx)) + display_chars
+            idx = 0
+        if idx >= len(display_chars):
+            display_chars += ['_'] * (idx - len(display_chars) + 1)
+        display_chars[idx] = f'[{display_chars[idx]}]'
+        tape_with_head = ''.join(display_chars)
+        id_str = f"ID: state={self.state} mem_cache={self._symbol_to_str(self.mem_cache)} tape={tape_with_head}"
+        self.ids.append(id_str)
+
+    def step(self) -> bool:
+        #Ejecuta un paso de la MT. Retorna True si aplicó una transición, False si no existe transición aplicable.
+        current_sym = self._read()
+        applicable = None
+        for t in self.transitions:
+            if t.matches(self.state, current_sym, self.mem_cache):
+                applicable = t
+                break
+        if applicable is None:
+            return False
+        out_sym = applicable.tape_output
+        self._write(out_sym)
+        self.mem_cache = applicable.out_mem_cache
+        if applicable.tape_disp is not None:
+            disp = applicable.tape_disp.upper()
+            if disp == 'L':
+                self.head -= 1
+            elif disp == 'R':
+                self.head += 1
+            elif disp == 'S':
+                pass
+            else:
+                pass
+        self.state = applicable.final_state
+        self._record_id()
+        return True
+
+    def run(self, max_steps: Optional[int] = None) -> Dict[str, Any]:
+        if max_steps is None:
+            max_steps = self.max_steps
+        steps = 0
+        while steps < max_steps:
+            if self.state in self.finals:
+                return {'accepted': True, 'steps': steps, 'ids': self.ids}
+            applied = self.step()
+            if not applied:
+                # no transition applicable
+                return {'accepted': self.state in self.finals, 'steps': steps, 'ids': self.ids}
+            steps += 1
+        # reached step limit
+        return {'accepted': self.state in self.finals, 'steps': steps, 'ids': self.ids, 'max_steps_hit': True}
+
+    @classmethod
+    def from_yaml(cls, data: Dict[str, Any]) -> 'TuringMachine':
+        q_states = data.get('q_states', {})
+        q_list = q_states.get('q_list', [])
+        initial = q_states.get('initial')
+        final = q_states.get('final')
+        finals = [final] if isinstance(final, (str, int)) else final or []
+        alphabet = data.get('alphabet', [])
+        tape_alphabet = data.get('tape_alphabet', [])
+        
+        # parse transitions
+        raw_delta = data.get('delta', [])
+        transitions = []
+        for entry in raw_delta:
+            params = entry.get('params', {})
+            output = entry.get('output', {})
+            
+            #Normalizar mem_cache_value también
+            if 'mem_cache_value' in params and params['mem_cache_value'] == '':
+                params['mem_cache_value'] = None
+            if 'mem_cache_value' in output and output['mem_cache_value'] == '':
+                output['mem_cache_value'] = None
+                
+            # Normalizar espacios en blanco a NONE
+            if 'tape_input' in params and params['tape_input'] == '':
+                params['tape_input'] = None
+            if 'tape_output' in output and output['tape_output'] == '':
+                output['tape_output'] = None
+                
+            transitions.append(Transition(params, output))
+        
+        return cls(states=q_list, initial=initial, finals=finals,
+                alphabet=alphabet, tape_alphabet=tape_alphabet,
+                transitions=transitions)
+
+def load_yaml_file(path: str) -> Dict[str, Any]:
+    with open(path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
