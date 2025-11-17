@@ -1,7 +1,7 @@
 # Máquina reconocedora para L = { a^n b^n | n >= 1 }
 q_states:
   q_list:
-    - 'q0'
+    - 'q0' 
     - 'q1' 
     - 'q2'
     - 'q3'
@@ -153,13 +153,14 @@ delta:
       tape_output:
       tape_displacement: S
 
+    
+
 simulation_strings:
   # 2 Cadenas ACEPTADAS (longitud >= 5)
   - aaaaaabbbbbb  # n=6
   - aaaabbbb      # n=4 (pero cumple aⁿbⁿ)
   
-  # 2 Cadenas RECHAZADAS (longitud >= 5)  
+  # 2 Cadenas RECHAZADAS (longitud >= 5) 
+  - bbaa 
   - aaaabbb       # n=4, m=3 (no iguales)
-  - aaabbba       # tiene 'a' después de 'b'
-  - ababab        # patrón alternado
   - aabbbbb       # más b's que a's
